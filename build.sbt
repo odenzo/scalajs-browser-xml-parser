@@ -59,7 +59,8 @@ lazy val xml = (crossProject(JSPlatform, JVMPlatform))
         XLib.scribe.value,
         XLib.scalaXML.value,
         XLib.munit.value,
-        XLib.munitCats.value
+        XLib.munitCats.value,
+        XLib.fs2Data.value
         //  "eu.cdevreeze.yaidom" %%% "yaidom" % "1.13.0"
 
       )

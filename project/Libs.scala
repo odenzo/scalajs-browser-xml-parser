@@ -15,6 +15,7 @@ object V {
   val circe              = "0.15.0-M1"
   val doobie             = "1.0.0-RC2"
   val fs2                = "3.2.7"
+  val fs2Data            = "1.3.1"
   val http4s             = "1.0.0-M32"
   val logback            = "1.2.11"
   val monocle            = "3.1.0"
@@ -166,7 +167,8 @@ object XLib {
   lazy val http4sCirce  = Def.setting("org.http4s" %%% "http4s-circe" % V.http4s)
   lazy val http4sXml    = Def.setting("org.http4s" %%% "http4s-scala-xml" % V.http4s)
   lazy val catsRetru    = Def.setting("com.github.cb372" %%% "cats-retry" % V.catsRetry)
-  val fs2               = Def.setting("co.fs2" %%% "fs2-core" % V.fs2)
+  val fs2               = Def.setting("fs2" %%% "fs2-core" % V.fs2)
+  val fs2Data           = Def.setting("org.gnieh" %%% "fs2-data-xml" % V.fs2Data)
   val circeScodec       = Def.setting("io.circe" %%% "circe-scodec" % V.circe)
   val scodecCore        = Def.setting("org.scodec" %%% "scodec-core" % V.scodec)
   val scodecCats        = Def.setting("org.scodec" %%% "scodec-cats" % V.scodecCats)
