@@ -13,33 +13,37 @@ import scala.xml.{Attribute, MetaData, Node, Null}
   *
   * Not worrying about pre-root node stuff yet, need to dest XML, DoctType and namespace declerations.
   */
-object MyAdaptor {
+object DOMAdaptor {
 
   val minimizeEmptyElements = true
   final val emptyNodes      = Seq.empty[scala.xml.Node]
 
+  // All Unit for now.
   type EventResult = Unit | scala.xml.Node
-  case class XMLContext(currElem: scala.xml.Elem, acrruedKids: scala.collection.mutable.Seq[scala.xml.Node])
-
-  /** MUTABLE STATE - not sure any choice or alternative */
-  private[xxml] val contextStack: mutable.Stack[XMLContext] = scala.collection.mutable.Stack.empty[XMLContext]
+  case class XMLContext(currElem: scala.xml.Elem, acrruedKids: scala.collection.mutable.ListBuffer[scala.xml.Node]) {
+    def fullString = s"Element: ${currElem.label} - Kids: ${currElem.child.size} Acrrued Kids: ${acrruedKids.size}"
+  }
 
   /** MUTABLE STATE
     *   - For aggregated linearized Nodes in the XML 'tree'.
     *   - In stream mode we will just emit and not use this.
     */
-  val linearized: mutable.Seq[Node] = mutable.Seq.empty
+
+  /** MUTABLE STATE - not sure any choice or alternative */
+  val contextStack: mutable.Stack[XMLContext] = scala.collection.mutable.Stack.empty[XMLContext]
+
+  def showContextStack: String = contextStack.map(ctx => ctx.fullString).mkString("\n^")
 
   def route(xmlEvent: XmlEvent): EventResult = {
-    xmlEvent match
+    scribe.info(s" ======>> Event: $xmlEvent Stack:\n$showContextStack")
+    val result = xmlEvent match
 
       case XmlEvent.XmlDecl(version, encoding, standalone) => ()
+      // We get these, maybe should pass along, or maybe have a cow if not stand-alone
 
       // acc.declaration(version, encoding.getOrElse(""), standalone.toString)
-      case XmlEvent.XmlDoctype(name, docname, systemid) =>
-      // scribe.warn(s"Skipping DOCTYPE: $name $docname $systemid")
+      case XmlEvent.XmlDoctype(name, docname, systemid) => () // We get these but not with internal DTD info.
 
-      // Deal with these later, basically clear state.
       case XmlEvent.StartDocument =>
         if contextStack.nonEmpty then
           scribe.warn(s"New Document But Not Finished with Last!")
@@ -47,7 +51,7 @@ object MyAdaptor {
 
       case XmlEvent.EndDocument =>
         if contextStack.nonEmpty then
-          scribe.warn(s"New Document But Not Finished with Last!")
+          scribe.warn(s"Ending document but still have open element")
           contextStack.popAll()
 
       // Note: We are dropping the URL for namespaces because not sure how it comes out of FS2
@@ -67,6 +71,8 @@ object MyAdaptor {
       case XmlEvent.XmlCharRef(ref: Int)   =>
         scribe.warn(s"Skipping Character Ref, which is for a built in entity ref? (&gt;) $ref")
 
+    scribe.info(s" <<====== Event: $xmlEvent Stack:\n$showContextStack")
+    ()
   }
 
   /** This may change state is namespaces are inhereted, otherwise not. No stack push anyway */
@@ -79,25 +85,32 @@ object MyAdaptor {
   // This will get called for the root element.
   def startElement(name: QName, attributes: List[Attr]): Unit =
     val xmlAttr: MetaData = AttributeTransformer.toScalaXML(attributes)
-    val curr              =
-      scala.xml.Elem(name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
+    val curr              = scala.xml.Elem(name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
     appendChild(curr)
-    contextStack.push(XMLContext(curr, mutable.Seq.empty))
+    contextStack.push(XMLContext(curr, mutable.ListBuffer.empty))
 
   def endElement(name: QName): Node = {
     // Get top of stack and make sure matches name, if so pop stack, add the element to the *current* top of stack
     // (which is not the enclosing element instead of this element). Add to its nodes* in mutable way. Ah, I see scalaxml
-    // logic now. Keep
-    val currOpen   = contextStack.pop()
+    // logic now.
+    // When the stack isempty we have out DOM I think. Or at least a subtree starting at root.
+    // Tempted to add a special "ROOT" node under which the real root is.
+    val currOpen   = contextStack.pop() // This should be the matching Elem that was opened and now closed.
     val currPrefix = currOpen.currElem.prefix
     val currName   = currOpen.currElem.prefix
     // Check, taking care of nulls that it matches.
     currOpen.currElem.copy(child = currOpen.acrruedKids.toSeq)
+    // If the stack is empty, then this is really end of document, so I cheat and push it back on or set a Deffered and have endDocument
+    // get the deffered. Probably startDocumetn add a XMLDoc node, check scalaXML as that or just starts with root.
   }
 
   /** Add the node to the accumulating set of child nodes for the current open element. */
-  def appendChild(node: scala.xml.Node): Unit = contextStack.top.acrruedKids.appended(node)
-
+  def appendChild(node: scala.xml.Node): Unit =
+    if contextStack.nonEmpty then
+      scribe.info(s"Before: ${contextStack.top.fullString}")
+      contextStack.top.acrruedKids += node
+      scribe.info(s"After: ${contextStack.top.fullString}")
+    else scribe.info(s"Not Adding Children to Parent Node Because Building First Element: $node")
   /* State Notes:
     - I guess we need to track current namespace based on last parent namespace? forget how that works in XML.
       Every node has to specify namespace or inherits last? I use top namespace for now. Guess we need to make a

@@ -16,24 +16,82 @@ import scala.scalajs.js.Object.entries
 import scala.xml.Elem
 
 class FS2DataTest extends munit.CatsEffectSuite {
-  // Hmm. dunno how to debug test this in Node env.
 
-  val input = """<a >
-                |  <n a="attribute">text</n>
-                |</a>
-                |<a>
-                |  <b/>
-                |  test entity resolution &amp; normalization
-                |</a>""".stripMargin
+  // Decl passed through, comments are stripped.
+  // Namespaces go through even if not declared.
+  // Namespaces not inherited.
+  // XMLDocType is passed through but not actioned if external source. Maybe some public ones are
+  // DocType first element name is not validated, in fact stuff between [ ...] is not passed in
+  // XMLDocType event.
+  // Entity decleration doesn't work
+  // An, per my mistake, of course fs-data doesn't guarantee a root node. Not sure it should really.
+  // TODO: Embedded DTD and some entities (builtin and declared)
+  val xmlDexl = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+                  |<!DOCTYPE foo [
+                  |
+                  |<!--define the internal DTD, foo or bar both "work".-->
+                  |<!-- ENforcement of schema not done of course.-->
+                  |  <!ELEMENT foo (#PCDATA)>
+                  |  <!ENTITY js "Jo Smith">
+                  |
+                  |<!--close the DOCTYPE declaration-->
+                  |]>
+                  | <simpleStuff>
+                  | <foo>Hello</foo>
+                  | <bar a="asd" b="sdf"   />
+                  |  <!-- Comment --> 
+                  |  <mynamespace:har>Har has undeclared namespece 
+                  |     <nestElem>Does not Inherits</nestElem>
+                  |  </mynamespace:har>
+                  |   <!-- Treats xmlns like at attribute but doesn't action it for prefix. -->
+                  |   <x xmlns:edi='http://ecommerce.example.org/schema'>
+                  |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
+                  |       for the "x" element and contents -->
+                  |       Or have some teta
+                  |    <yyyyyy>Y Not But me in the Tree</yyyyyy>
+                  |    <edi:xx>But doesn't mind not knowing the namespace</edi:xx>
+                  |  </x>
+                  | <!-- &js; will give error -->
+                  | <end>the &amp;</end>
+                  | </simpleStuff>""".stripMargin
 
-  test("Basic Parseing") {
-    given rt: IORuntime = cats.effect.unsafe.IORuntime.global
-    FSData.parse(input).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
+  val xmlExt = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+                 |<!DOCTYPE XHTML SYSTEM "subjects.dtd">
+                 |
+                 | <foo>Hello</foo>
+                 | <bar a="asd" b="sdf"   />
+                 |  <!-- Comment --> 
+                 |  <mynamespace:har>Har has undeclared namespece 
+                 |     <nestElem>Does not Inherits</nestElem>
+                 |  </mynamespace:har>
+                 |  <x xmlns:edi='http://ecommerce.example.org/schema'>
+                 |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
+                 |       for the "x" element and contents -->
+                 |       Or have some teta
+                 |    <yyyyyy>Y Not But me in the Tree</yyyyy>
+                 |  </x>
+                 | <end>the</end>""".stripMargin
+
+  val input = """<root>
+                | <a1>First Element</a1>
+                | <b1>Second Element Same Level</b1>
+                |</root>""".stripMargin
+
+  test("Basic Parseing".ignore) {
+
+    FSData.parse(xmlDexl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
 
   }
 
   test("ScalaXML") {
-    val elem = ScalaXML.parse(input)
-    scribe.info(s"ScalaXML: ${pprint(elem)}")
+    val adaptor = DOMAdaptor
+    for {
+      stream <- FSData.parse(input).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
+      _       = adaptor.route(XmlEvent.StartDocument)
+      _       = stream.foreach(adaptor.route)
+      _       = adaptor.route(XmlEvent.EndDocument)
+      dom     = adaptor.contextStack.top.currElem
+    } yield dom
+    // scribe.info(s"ScalaXML: ${pprint(elem)}")
   }
 }
