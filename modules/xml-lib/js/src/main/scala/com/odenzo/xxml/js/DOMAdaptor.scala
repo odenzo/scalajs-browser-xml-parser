@@ -24,6 +24,8 @@ object DOMAdaptor {
   trait DOMContext {
     def addChild(x: Node): Unit
   }
+
+  /** Change to allow multiple roots (or a headless Tree) */
   case class SyntheticRoot(root: Option[scala.xml.Elem])                                                            extends DOMContext {
     def addChild(x: Node): Unit = throw Throwable("Add Child to Synthetic Root Should never be called?")
   }
@@ -38,7 +40,7 @@ object DOMAdaptor {
     */
 
   /** MUTABLE STATE - not sure any choice or alternative, no variance on Stack? */
-  private val contextStack: mutable.Stack[DOMContext] = scala.collection.mutable.Stack.empty[DOMContext]
+  val contextStack: mutable.Stack[DOMContext] = scala.collection.mutable.Stack.empty[DOMContext]
 
   def showContextStack: String = contextStack.map {
     case SyntheticRoot(None)       => s"SYNTHETIC ROOT"
@@ -61,11 +63,15 @@ object DOMAdaptor {
         if contextStack.nonEmpty then
           scribe.warn(s"New Document But Not Finished with Last!")
           contextStack.popAll()
+        contextStack.push(SyntheticRoot(None))
 
       case XmlEvent.EndDocument =>
         if contextStack.nonEmpty then
           scribe.warn(s"Ending document but still have open element")
           contextStack.popAll()
+
+      // This is where we should return the document, or more precisly, release the synthetic root value (which could be Seq(..) instead
+      // of root
 
       // Note: We are dropping the URL for namespaces because not sure how it comes out of FS2
       // Different models for attributes, I wonder if scala-xml is binding of JDK attribute type?
@@ -92,13 +98,17 @@ object DOMAdaptor {
   def startEmptyElement(name: QName, attributes: List[Attr]): Unit = {
     val xmlAttr: MetaData = AttributeTransformer.toScalaXML(attributes)
     val elem              = scala.xml.Elem(prefix = name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
+    val context: DOMContext = XMLContext(elem, emptyNodes)
+
+    // This is a start and a stop, so we are really just adding a child to the current top of the stack.
+    //
     contextStack.top match {
-      case nonRoot: XMLContext       =>
-        val context: DOMContext = XMLContext(elem, emptyNodes)
-        contextStack.push(context)
+      case ctx: XMLContext       => ctx.addChild(elem)
       case SyntheticRoot(None)       =>
-        val context: DOMContext = XMLContext(elem, emptyNodes)
+        contextStack.pop()
         contextStack.push(context)
+
+      /*  <a/> <b/>  case -- still debating allowing   */
       case SyntheticRoot(Some(root)) =>
         // Can only have one root note, although fs-data-xml doesn't enforce this I do.
         throw Throwable("Added to SyntheticRoot when already root node exists.")
@@ -110,7 +120,7 @@ object DOMAdaptor {
   def startElement(name: QName, attributes: List[Attr]): Unit =
     val xmlAttr: MetaData = AttributeTransformer.toScalaXML(attributes)
     val curr              = scala.xml.Elem(name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
-    appendChild(curr)
+   // appendChild(curr)
     contextStack.push(XMLContext(curr, mutable.ListBuffer.empty))
 
   def endElement(name: QName): Unit = {
@@ -127,10 +137,13 @@ object DOMAdaptor {
     }
   }
 
-  /** Add the node to the accumulating set of child nodes for the current open element. */
-  def appendChild(node: scala.xml.Node): Unit =
-    if contextStack.nonEmpty then contextStack.top.addChild(node)
-    else scribe.info(s"Not Adding Children to Parent Node Because Building First Element: $node")
+  /** On the way down, this is adding a node to the parent element.
+    * which may be a synthetic root, which we will just pop and push replace for now. */
+  def appendChild(node: scala.xml.Node): Unit = contextStack.top match
+    case x:SyntheticRoot(root) => ???
+    case XMLContext(currElem, acrruedKids) => ???
+    case _ => ???(node)
+
 }
 
 object AttributeTransformer {
