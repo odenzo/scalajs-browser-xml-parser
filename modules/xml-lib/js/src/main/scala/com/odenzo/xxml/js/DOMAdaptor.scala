@@ -4,24 +4,32 @@ import cats.data.Chain
 import fs2.data.xml.{Attr, QName, XmlEvent}
 
 import scala.collection.mutable
-import scala.xml.{Attribute, MetaData, Node, Null}
+import scala.collection.mutable.ListBuffer
+import scala.xml.{Attribute, Elem, MetaData, NamespaceBinding, Node, NodeSeq, Null}
 
 /** An Adaptor to take XMLEvents from FS2 and directly instanciate a linearized sequence of node in ScalaXML. An Node is either an elem or
   * CDATA or Text etc. Elem has all the attributes as "linked list" This assumed that entities have already been replaced and normalization
   * down from FS2. Twp approaches, a statefaul FS2 op or get a list of XMLEvent and build from there. I do the latter first then try to
   * build into a stream.
   *
-  * Not worrying about pre-root node stuff yet, need to dest XML, DoctType and namespace declerations.
+  * Not worrying about pre-root node stuff yet, need to dest XML, DoctType and namespace declerations. I guess its up to me to find xmlns
+  * attributes and deal with nested scopes, adding prefixes to nested as needed?
   */
 object DOMAdaptor {
 
   val minimizeEmptyElements = true
-  final val emptyNodes      = Seq.empty[scala.xml.Node]
+  final val emptyNodes      = ListBuffer.empty[scala.xml.Node]
 
-  // All Unit for now.
-  type EventResult = Unit | scala.xml.Node
-  case class XMLContext(currElem: scala.xml.Elem, acrruedKids: scala.collection.mutable.ListBuffer[scala.xml.Node]) {
-    def fullString = s"Element: ${currElem.label} - Kids: ${currElem.child.size} Acrrued Kids: ${acrruedKids.size}"
+  // type DOMContext Synthic | XMLContext .. not sure what doing wrong.
+  trait DOMContext {
+    def addChild(x: Node): Unit
+  }
+  case class SyntheticRoot(root: Option[scala.xml.Elem])                                                            extends DOMContext {
+    def addChild(x: Node): Unit = throw Throwable("Add Child to Synthetic Root Should never be called?")
+  }
+  case class XMLContext(currElem: scala.xml.Elem, acrruedKids: scala.collection.mutable.ListBuffer[scala.xml.Node]) extends DOMContext {
+    def addChild(x: Node): Unit = this.acrruedKids += x
+    def fullString              = s"Element: ${currElem.label} - Kids: ${currElem.child.size} Acrrued Kids: ${acrruedKids.size}"
   }
 
   /** MUTABLE STATE
@@ -29,12 +37,17 @@ object DOMAdaptor {
     *   - In stream mode we will just emit and not use this.
     */
 
-  /** MUTABLE STATE - not sure any choice or alternative */
-  val contextStack: mutable.Stack[XMLContext] = scala.collection.mutable.Stack.empty[XMLContext]
+  /** MUTABLE STATE - not sure any choice or alternative, no variance on Stack? */
+  private val contextStack: mutable.Stack[DOMContext] = scala.collection.mutable.Stack.empty[DOMContext]
 
-  def showContextStack: String = contextStack.map(ctx => ctx.fullString).mkString("\n^")
+  def showContextStack: String = contextStack.map {
+    case SyntheticRoot(None)       => s"SYNTHETIC ROOT"
+    case SyntheticRoot(Some(root)) => s"SYNTHETIC ROOT w/  ROOT => ${root}"
+    case xmlctx: XMLContext        => s"XMLContext: ${xmlctx.fullString}"
+    case other                     => s"OTHER: $other"
+  }.mkString
 
-  def route(xmlEvent: XmlEvent): EventResult = {
+  def route(xmlEvent: XmlEvent): Unit = {
     scribe.info(s" ======>> Event: $xmlEvent Stack:\n$showContextStack")
     val result = xmlEvent match
 
@@ -76,10 +89,21 @@ object DOMAdaptor {
   }
 
   /** This may change state is namespaces are inhereted, otherwise not. No stack push anyway */
-  def startEmptyElement(name: QName, attributes: List[Attr]): Node = {
+  def startEmptyElement(name: QName, attributes: List[Attr]): Unit = {
     val xmlAttr: MetaData = AttributeTransformer.toScalaXML(attributes)
     val elem              = scala.xml.Elem(prefix = name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
-    elem
+    contextStack.top match {
+      case nonRoot: XMLContext       =>
+        val context: DOMContext = XMLContext(elem, emptyNodes)
+        contextStack.push(context)
+      case SyntheticRoot(None)       =>
+        val context: DOMContext = XMLContext(elem, emptyNodes)
+        contextStack.push(context)
+      case SyntheticRoot(Some(root)) =>
+        // Can only have one root note, although fs-data-xml doesn't enforce this I do.
+        throw Throwable("Added to SyntheticRoot when already root node exists.")
+
+    }
   }
 
   // This will get called for the root element.
@@ -89,40 +113,24 @@ object DOMAdaptor {
     appendChild(curr)
     contextStack.push(XMLContext(curr, mutable.ListBuffer.empty))
 
-  def endElement(name: QName): Node = {
-    // Get top of stack and make sure matches name, if so pop stack, add the element to the *current* top of stack
-    // (which is not the enclosing element instead of this element). Add to its nodes* in mutable way. Ah, I see scalaxml
-    // logic now.
-    // When the stack isempty we have out DOM I think. Or at least a subtree starting at root.
-    // Tempted to add a special "ROOT" node under which the real root is.
-    val currOpen   = contextStack.pop() // This should be the matching Elem that was opened and now closed.
-    val currPrefix = currOpen.currElem.prefix
-    val currName   = currOpen.currElem.prefix
-    // Check, taking care of nulls that it matches.
-    currOpen.currElem.copy(child = currOpen.acrruedKids.toSeq)
-    // If the stack is empty, then this is really end of document, so I cheat and push it back on or set a Deffered and have endDocument
-    // get the deffered. Probably startDocumetn add a XMLDoc node, check scalaXML as that or just starts with root.
+  def endElement(name: QName): Unit = {
+    contextStack.pop() match {
+      case XMLContext(currElem, acrruedKids) =>
+        // Safety checked skipped to make sure we are closing matching tag.
+        // Move the acrrued children to the "child" NodeSeq in the present element.
+        val closedElem = currElem.copy(child = acrruedKids)
+        // ANd then add as a child to the current Top of Stack, which should be XMLContext of root or node in tree
+        contextStack.top.addChild(closedElem)
+
+      case x @ SyntheticRoot(Some(_)) => throw IllegalStateException("Closing SynthRoot with Root in Synthetic")
+      case SyntheticRoot(None)        => throw IllegalStateException("Closing SynthRoot with No Synthetic")
+    }
   }
 
   /** Add the node to the accumulating set of child nodes for the current open element. */
   def appendChild(node: scala.xml.Node): Unit =
-    if contextStack.nonEmpty then
-      scribe.info(s"Before: ${contextStack.top.fullString}")
-      contextStack.top.acrruedKids += node
-      scribe.info(s"After: ${contextStack.top.fullString}")
+    if contextStack.nonEmpty then contextStack.top.addChild(node)
     else scribe.info(s"Not Adding Children to Parent Node Because Building First Element: $node")
-  /* State Notes:
-    - I guess we need to track current namespace based on last parent namespace? forget how that works in XML.
-      Every node has to specify namespace or inherits last? I use top namespace for now. Guess we need to make a
-      NamespaceBinding for all the declared namespaces.  at least.
-    - A immutable.List of Nodes from the linearized DOM Tree (in reverse order, or use Chain and append)
-    - We have a stack of (elem, var childList) -- we add to childList on openElem, on closeElem pop and update childList
-    - Parsing options I guess:
-       - Minimize Empty Elements
-
-    Context(current:scala.xml.Elem, childList: mutable.List[Node])
-    Stack[Context]
-   */
 }
 
 object AttributeTransformer {

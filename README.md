@@ -14,7 +14,8 @@ All I really need parser into a basic DOM like structure.
 ### Solution so far
 1. fs2-data-xml with adaptor into scala-xml
 2. Just use built in DOMParser and XPath -- facade between ScalaJS impl and existing scala-xml impl
-
+3. Would be nice to have a stream emit the final DOM in one go
+4. 
 ### WIP Notes
 
 - FS2:
