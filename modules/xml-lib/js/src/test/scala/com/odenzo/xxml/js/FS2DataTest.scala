@@ -91,9 +91,9 @@ class FS2DataTest extends munit.CatsEffectSuite {
       _       = stream.foreach(adaptor.route)
       _       = adaptor.route(XmlEvent.EndDocument)
       dom     = adaptor.contextStack.top match
-                  case DOMAdaptor.SyntheticRoot(Some(root))         => scribe.info(s"Got the Root $root")
-                  case DOMAdaptor.XMLContext(currElem, acrruedKids) => ???
-                  case DOMAdaptor.SyntheticRoot(None)               => ???
+                  case DOMAdaptor.SyntheticRoot(roots) => scribe.info(s"Got the Root $roots")
+                  // Support <a></a><b></b> becaus, well jst because really.
+                  case other                           => scribe.info(s"Other: $other")
     } yield dom
     // scribe.info(s"ScalaXML: ${pprint(elem)}")
   }
