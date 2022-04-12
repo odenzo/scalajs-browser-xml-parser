@@ -7,7 +7,7 @@ import scala.annotation.tailrec
 import scala.scalajs.js
 import scala.scalajs.js.Object.entries
 import scala.xml.Elem
-
+import cats.effect.unsafe.implicits.global
 class XMLParserTest extends munit.FunSuite {
   // Hmm. dunno how to debug test this in Node env.
   test("Basic Parseing") {

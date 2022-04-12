@@ -31,7 +31,8 @@ object DOMAdaptor {
     def addChild(x: Node): Unit      = this.accruedKids += x
   }
 
-  case class XMLContext(currElem: scala.xml.Elem, accruedKids: scala.collection.mutable.ListBuffer[scala.xml.Node]) extends DOMContext {
+  case class OpenElemContext(currElem: scala.xml.Elem, accruedKids: scala.collection.mutable.ListBuffer[scala.xml.Node])
+      extends DOMContext {
     override def children: Seq[Node] = accruedKids.toList // Expose as ummutable
     def addChild(x: Node): Unit      = this.accruedKids += x
     def fullString                   = s"Element: ${currElem.label} - Kids: ${currElem.child.size} Acrrued Kids: ${accruedKids.size}"
@@ -41,9 +42,9 @@ object DOMAdaptor {
   val contextStack: mutable.Stack[DOMContext] = scala.collection.mutable.Stack.empty[DOMContext]
 
   def showContextStack: String = contextStack.map {
-    case SyntheticRoot(kids) => s"SYNTHETIC ROOT w/  ROOT => ${kids}"
-    case xmlctx: XMLContext  => s"XMLContext: ${xmlctx.fullString}"
-    case other               => s"OTHER: $other"
+    case SyntheticRoot(kids)     => s"SYNTHETIC ROOT w/  ROOT => ${kids}"
+    case xmlctx: OpenElemContext => s"XMLContext: ${xmlctx.fullString}"
+    case other                   => s"OTHER: $other"
   }.mkString
 
   /** Called after document close */
@@ -105,11 +106,11 @@ object DOMAdaptor {
   def startElement(name: QName, attributes: List[Attr]): Unit =
     val xmlAttr: MetaData = AttributeTransformer.toScalaXML(attributes)
     val curr              = scala.xml.Elem(name.prefix.orNull, name.local, xmlAttr, scala.xml.TopScope, minimizeEmptyElements)
-    contextStack.push(XMLContext(curr, mutable.ListBuffer.empty))
+    contextStack.push(OpenElemContext(curr, mutable.ListBuffer.empty))
 
   def endElement(name: QName): Unit = {
     contextStack.pop() match {
-      case XMLContext(currElem, acrruedKids) =>
+      case OpenElemContext(currElem, acrruedKids) =>
         // Safety checked skipped to make sure we are closing matching tag.
         // Move the acrrued children to the "child" NodeSeq in the present element.
         val closedElem = currElem.copy(child = acrruedKids)
@@ -125,8 +126,8 @@ object DOMAdaptor {
     * for now.
     */
   def appendChild(node: scala.xml.Node): Unit = contextStack.top match
-    case x: SyntheticRoot => x.addChild(node)
-    case x: XMLContext    => x.addChild(node)
+    case x: SyntheticRoot   => x.addChild(node)
+    case x: OpenElemContext => x.addChild(node)
 }
 
 object AttributeTransformer {

@@ -26,7 +26,7 @@ class FS2DataTest extends munit.CatsEffectSuite {
   // Entity decleration doesn't work
   // An, per my mistake, of course fs-data doesn't guarantee a root node. Not sure it should really.
   // TODO: Embedded DTD and some entities (builtin and declared)
-  val xmlDexl = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+  val xmlDecl = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
                   |<!DOCTYPE foo [
                   |
                   |<!--define the internal DTD, foo or bar both "work".-->
@@ -79,11 +79,11 @@ class FS2DataTest extends munit.CatsEffectSuite {
 
   test("Basic Parseing".ignore) {
 
-    FSData.parse(xmlDexl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
+    FSData.parse(xmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
 
   }
 
-  test("ScalaXML") {
+  test("ScalaXML".ignore) {
     val adaptor = DOMAdaptor
     for {
       stream <- FSData.parse(input).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
@@ -96,5 +96,9 @@ class FS2DataTest extends munit.CatsEffectSuite {
                   case other                           => scribe.info(s"Other: $other")
     } yield dom
     // scribe.info(s"ScalaXML: ${pprint(elem)}")
+  }
+
+  test("emit") {
+    FSData.parse(xmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
   }
 }

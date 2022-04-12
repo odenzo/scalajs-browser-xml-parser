@@ -14,12 +14,13 @@ object FSData {
 
   def parse(xml: String) = {
 
-    val stream: Stream[IO, XmlEvent] = Stream
+    val stream: Stream[IO, XmlEvent]       = Stream
       .emit(xml)
       .through(events[IO, String])
       .through(referenceResolver[IO]())
+      .through(namespaceResolver[IO])
       .through(normalize)
-
+      .debug(v => s"EMITTED: $v")
     val l: IO[List[fs2.data.xml.XmlEvent]] = stream.compile.toList
     l
   }
