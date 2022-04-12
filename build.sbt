@@ -30,7 +30,7 @@ inThisBuild {
   reStartArgs                 := Seq("-x")
   Test / fork                 := false // ScalaJS can't be forked
   Test / parallelExecution    := false
-  Test / logBuffered          := false
+  Test / logBuffered          := true
   scalacOptions ++= Seq("-release", "11")
   Compile / parallelExecution := false
 }
@@ -66,6 +66,13 @@ lazy val xml = (crossProject(JSPlatform, JVMPlatform))
       )
   )
   .jsSettings(
-    libraryDependencies ++= Seq("org.scala-js" %%% "scalajs-dom" % "2.1.0"),
+    libraryDependencies ++= Seq(
+      "org.scala-js" %%% "scalajs-dom" % "2.1.0"
+      // Has to be in plugins.sbt
+      // "org.scala-js"   % "scalajs-env-jsdom-nodejs_213.8" % "1.1.0"
+    ),
     jsEnv := new org.scalajs.jsenv.jsdomnodejs.JSDOMNodeJSEnv()
   )
+
+ThisBuild / jsEnv := new org.scalajs.jsenv.jsdomnodejs.JSDOMNodeJSEnv()
+addCommandAlias("to", "testOnly -- --tests=*JSDom")

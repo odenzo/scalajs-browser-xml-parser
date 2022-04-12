@@ -27,6 +27,7 @@ All I really need parser into a basic DOM like structure.
   - Prefixes are passed through  
   - Namespaces go through as attributes on an elem, but nested elements don't get prefixed 
   - Doesn't guarantee a root node. Not sure it should really.
+  - undefined namespaces get error as they should
   - No DocumentStart/DocumentEnd when feeding a <?xml...> <root></root>
 
 - Mapping to scala-xml (any better DOM)

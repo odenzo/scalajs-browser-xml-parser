@@ -8,6 +8,7 @@ import cats.*
 import cats.data.*
 import cats.effect.unsafe.IORuntime
 import cats.implicits.*
+import com.odenzo.xxml.js.TestData.input
 import fs2.data.xml.XmlEvent
 
 import scala.annotation.tailrec
@@ -26,60 +27,10 @@ class FS2DataTest extends munit.CatsEffectSuite {
   // Entity decleration doesn't work
   // An, per my mistake, of course fs-data doesn't guarantee a root node. Not sure it should really.
   // TODO: Embedded DTD and some entities (builtin and declared)
-  val xmlDecl = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-                  |<!DOCTYPE foo [
-                  |
-                  |<!--define the internal DTD, foo or bar both "work".-->
-                  |<!-- ENforcement of schema not done of course.-->
-                  |  <!ELEMENT foo (#PCDATA)>
-                  |  <!ENTITY js "Jo Smith">
-                  |
-                  |<!--close the DOCTYPE declaration-->
-                  |]>
-                  | <simpleStuff>
-                  | <foo>Hello</foo>
-                  | <bar a="asd" b="sdf"   />
-                  |  <!-- Comment --> 
-                  |  <mynamespace:har>Har has undeclared namespece 
-                  |     <nestElem>Does not Inherits</nestElem>
-                  |  </mynamespace:har>
-                  |   <!-- Treats xmlns like at attribute but doesn't action it for prefix. -->
-                  |   <x xmlns:edi='http://ecommerce.example.org/schema'>
-                  |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
-                  |       for the "x" element and contents -->
-                  |       Or have some teta
-                  |    <yyyyyy>Y Not But me in the Tree</yyyyyy>
-                  |    <edi:xx>But doesn't mind not knowing the namespace</edi:xx>
-                  |  </x>
-                  | <!-- &js; will give error -->
-                  | <end>the &amp;</end>
-                  | </simpleStuff>""".stripMargin
-
-  val xmlExt = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-                 |<!DOCTYPE XHTML SYSTEM "subjects.dtd">
-                 |
-                 | <foo>Hello</foo>
-                 | <bar a="asd" b="sdf"   />
-                 |  <!-- Comment --> 
-                 |  <mynamespace:har>Har has undeclared namespece 
-                 |     <nestElem>Does not Inherits</nestElem>
-                 |  </mynamespace:har>
-                 |  <x xmlns:edi='http://ecommerce.example.org/schema'>
-                 |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
-                 |       for the "x" element and contents -->
-                 |       Or have some teta
-                 |    <yyyyyy>Y Not But me in the Tree</yyyyy>
-                 |  </x>
-                 | <end>the</end>""".stripMargin
-
-  val input = """<root>
-                | <a1>First Element</a1>
-                | <b1>Second Element Same Level</b1>
-                |</root>""".stripMargin
 
   test("Basic Parseing".ignore) {
 
-    FSData.parse(xmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
+    FSData.parse(TestData.invalidXmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
 
   }
 
@@ -98,7 +49,7 @@ class FS2DataTest extends munit.CatsEffectSuite {
     // scribe.info(s"ScalaXML: ${pprint(elem)}")
   }
 
-  test("emit") {
-    FSData.parse(xmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
+  test("emit".ignore) {
+    FSData.parse(TestData.invalidXmlDecl).flatTap(v => IO(scribe.info(s"Res: ${pprint(v)}")))
   }
 }
