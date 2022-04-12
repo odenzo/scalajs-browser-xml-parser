@@ -33,22 +33,21 @@ object TestData {
                          | <end>the &amp;</end>
                          | </simpleStuff>""".stripMargin
 
-  val xmlExt = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
-                 |<!DOCTYPE XHTML SYSTEM "subjects.dtd">
-                 |
-                 | <foo>Hello</foo>
-                 | <bar a="asd" b="sdf"   />
-                 |  <!-- Comment --> 
-                 |  <mynamespace:har>Har has undeclared namespece 
-                 |     <nestElem>Does not Inherits</nestElem>
-                 |  </mynamespace:har>
-                 |  <x xmlns:edi='http://ecommerce.example.org/schema'>
-                 |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
-                 |       for the "x" element and contents -->
-                 |       Or have some teta
-                 |    <yyyyyy>Y Not But me in the Tree</yyyyy>
-                 |  </x>
-                 | <end>the</end>""".stripMargin
+  val validXML = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+                   |<!DOCTYPE XHTML SYSTEM "subjects.dtd">
+                   |<rutabega>
+                   | <foo c="oi">Hello</foo>
+                   | <bar a="asd" b="sdf"   />
+                   |  <!-- Comment --> 
+                   
+                   |  <x xmlns:edi='http://ecommerce.example.org/schema'>
+                   |  <!-- the "edi" prefix is bound to http://ecommerce.example.org/schema
+                   |       for the "x" element and contents -->
+                   |    <yy>Y Not But me in the Tree</yy>
+                   |    <edi:z>Ediz</edi:z>
+                   |  </x>
+                   | <end>the</end>
+                   | </rutabega>""".stripMargin
 
   val input = """<root>
                 | <a1>First Element</a1>

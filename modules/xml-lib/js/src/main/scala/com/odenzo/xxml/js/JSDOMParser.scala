@@ -44,20 +44,7 @@ object JSDOMParser {
     def traverseTree(tcursor: TreeWalker, acc: NodeSeq) = {
 
       tcursor.nextNode() // This seems to be traversal iterator, "Next visibile node" so that would be depth first left travseal of
-      // sublings, similar to SAX, not sure if any easier/better than traversing myself TBH
-      // All for today
-      // Logic:
-      // If I have kids build me as Tree, else I am Leaf.
-      // If I have siblings, traverse sidewise with each sibling going to a Tree or Leaf
-      // Pop-Up add the NodeSequence to the Parent
-      //
-      //      Option(tcursor.firstChild()) match {
-      //        case Some(child) => traverseTree(tcursor, acc) // Descend, tcursoe is now centered on the child node already
-      //        case None        => leafToSXMLNode(tcursor.currentNode)
-      //
-      // //          traverse // We are a leaf node, we now traverse siblings who may not be leaf nodes
-      //
-      //      }
+
     }
 
   }
@@ -88,19 +75,19 @@ https://www.w3schools.com/xml/xml_parser.asp
     // Geez, how to serialize to text a doc or node.
 
     val custom = ntype match
-      case JSDomNodeType.ELEMENT_NODE                => s"${n.nodeName} ${n.nodeValue}"
+      case JSDomNodeType.ELEMENT_NODE                => s"${n.nodeName} ${n.nodeValue} Has Children: ${n.hasChildNodes()}"
       case JSDomNodeType.ATTRIBUTE_NODE              => s"${n.nodeName} ${n.nodeValue} ${n.toString}"
       case JSDomNodeType.TEXT_NODE                   => s"[${n.textContent.trim}]"
       case JSDomNodeType.CDATA_SECTION_NODE          => s"[${n.textContent.trim}] [${n.nodeValue.trim}]"
-      case JSDomNodeType.ENTITY_REFERENCE_NODE       => s""
-      case JSDomNodeType.ENTITY_NODE                 => s""
+      case JSDomNodeType.ENTITY_REFERENCE_NODE       => s"LEGACY"
+      case JSDomNodeType.ENTITY_NODE                 => s"LEGACY"
       case JSDomNodeType.PROCESSING_INSTRUCTION_NODE => s""
-      case JSDomNodeType.COMMENT_NODE                => s""
+      case JSDomNodeType.COMMENT_NODE                => s"${n.textContent.trim}"
       case JSDomNodeType.DOCUMENT_NODE               => s""
       case JSDomNodeType.DOCUMENT_TYPE_NODE          => s""
       case JSDomNodeType.DOCUMENT_FRAGMENT_NODE      => s""
-      case JSDomNodeType.NOTATION_NODE               => s""
+      case JSDomNodeType.NOTATION_NODE               => s"LEGACY"
 
-    s"$ntype:  $custom Has Children: ${n.hasChildNodes()}"
+    s"$ntype:  $custom "
   }
 }

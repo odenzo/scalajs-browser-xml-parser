@@ -33,15 +33,15 @@ class JSDOMParserTest extends munit.FunSuite {
   }
 
   test("TreeWalker") {
-    val doc                 = JSDOMParser.parse(TestData.input)
+    val doc                 = JSDOMParser.parse(TestData.validXML)
     val root                = doc.documentElement
     val myShowAll: Int      = {
       import NodeFilter.*
       SHOW_TEXT | SHOW_DOCUMENT | SHOW_CDATA_SECTION | SHOW_COMMENT | SHOW_ELEMENT | SHOW_ENTITY | SHOW_DOCUMENT_TYPE
-      256 | 128 | 1 | 8 | 4 | 2 | 512
+      1 | 4 | 8 | 64 | 128 | 256 | 512 | 1024
     }
     scribe.info(s"My ShowAll: $myShowAll")
-    val tcursor: TreeWalker = doc.createTreeWalker(root, myShowAll, null, true)
+    val tcursor: TreeWalker = doc.createTreeWalker(doc, myShowAll, null, true)
     JSDOMParser.showTraversal(tcursor)
 
   }
