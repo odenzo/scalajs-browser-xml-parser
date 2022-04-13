@@ -1,93 +1,101 @@
 package com.odenzo.xxml.js
 
+import cats.effect.*
+import cats.effect.syntax.all.*
+import cats.*
+import cats.data.*
+import cats.implicits.*
 import org.scalajs.dom
-import org.scalajs.dom.{Document, Element, Node, NodeFilter, TreeWalker}
+import org.scalajs.dom.{Attr, ByteString, DOMList, Document, Element, NamedNodeMap, Node, NodeFilter, Text, TreeWalker, XMLSerializer}
 
 import scala.scalajs.js
-import scala.xml.NodeSeq
+import scala.xml.{MetaData, NodeSeq}
 
-/** Uses ScalaJS DOM which I think is a facade between the actual browser DOM and/or jsdom/jsdom from https://github.com/jsdom/jsdom.
+/** Uses ScalaJS DOM which I think is a facade between the actual browser DOM and/or jsdom/jsdom from https://github.com/jsdom/jsdom. This
+  * is more of a DOM-2-DOM translator. But, I implement it as a SAX by traversin I think.
   */
 object JSDOMParser {
 
   /* Looks like scalajs-dom does not have the DOMParser in it. */
   val xmlMimeType = org.scalajs.dom.MIMEType.`application/xml`
 
-  def parse(xmlStr: String): Document = {
-    val parser        = new org.scalajs.dom.DOMParser
-    val doc: Document = parser.parseFromString(xmlStr, xmlMimeType)
-    scribe.info(s"Document: $doc")
-    scribe.info(s"Document: ${pprint(doc)}")
-    doc
-  }
+  def parse(xmlStr: String): Document =
+    new org.scalajs.dom.DOMParser().parseFromString(xmlStr, xmlMimeType)
 
-  /** Well, we have the DOM in some state, we can traverse it to build Scala XML DOM */
-  def transformToScalaXML(doc: Document) = {
-
-    /** Accept all nodes */
-
+  /** Well, we have the DOM in some state, we can traverse it to build Scala XML DOM I have no idea how to inject these into scala.xml AST
+    * which seems tightly bound with parsing (or SAX Parser)
+    */
+  def transformToScalaXML(doc: Document): xml.Node = {
     val docType       = doc.doctype
     doc.documentElement.normalize()
     val root: Element = doc.documentElement
-    val whatToShow    = NodeFilter.SHOW_ALL // Int, but SHOW_ALL is max unsigned long in MDN
-    // expandEntityReferences is deprecated and not supported
+    recursiveDescent(root)
+  }
 
-    doc.createNodeIterator(root, whatToShow, null, true) // , NodeFilter.SHOW_ALL, filterNone, true)
-    val tcursor: TreeWalker = doc.createTreeWalker(root, whatToShow, null, true)
-    // tcursor.root ; tcursor.currentNode; tcursor.firstChild() / lastChile firstSibling/lastSibling /
-    // next/prev/first/last siblings etc.
-    // returns null on nothing. Standard traversal or some optimization given scalaxml Node = NodeSeq ?
-    // Droste learning time or fn recursion?
-    // Going
-    showTraversal(tcursor)
+  /** Hmmm, is it true only elems have descendants once the xmldecl (root onwards). I assume so. */
+  def recursiveDescent(root: org.scalajs.dom.Element): scala.xml.Node = {
+    // For Namespace stuff, need to keep a list of namespaces from xmlDecl AND I belive have global "scope" supplements by
+    // heirarchial scope.... so heirarchial scopes get passed in going down removed on the way up.
+    val rootsChildren: List[Node] = root.childNodes.toList // Need seperate for type inference
+    val kids: Seq[scala.xml.Node] = rootsChildren.map {
+      case e: Element => recursiveDescent(e)
+      case n: Node    => convert(n)
+    }
+    closeElement(root, kids)
 
-    def traverseTree(tcursor: TreeWalker, acc: NodeSeq) = {
+  }
 
-      tcursor.nextNode() // This seems to be traversal iterator, "Next visibile node" so that would be depth first left travseal of
+  def closeElement(v: Element, children: Seq[scala.xml.Node]): scala.xml.Elem = {
+    // FIXME: Scope Stack instead of TopScope
+    scala.xml.Elem(
+      prefix = v.prefix,
+      label = v.tagName,
+      attributes = convertAttributes(v),
+      scope = xml.TopScope,
+      minimizeEmpty = true,
+      child = children*
+    )
+  }
 
+  def convert(n: Node): scala.xml.Node = {
+    import org.scalajs.dom.*
+    n match
+      // case v: Document              => scala.xml.NodeSeq.Empty
+      // case v: DocumentType          => scala.xml.dtd.DocType(v.name, v.publicId, Seq.empty)
+      case v: Comment               => scala.xml.Text(v.nodeValue)
+      case v: Text                  => scala.xml.Text(v.nodeValue)
+      case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data)
+      case v: Element               => scala.xml.Elem(v.prefix, v.tagName, convertAttributes(v), scope = null, minimizeEmpty = true)
+  }
+
+  /** Converts scalajs.dom attributes to scala-xml attributes, leaves any xmlns:nameSpaceUri attributes in. */
+  def convertAttributes(elem: Element): MetaData = {
+    val attrs: List[(String, Attr)] = elem.attributes.toList
+    // Type Inference a bit wonky, need to case to MetaData from Attribute
+    attrs.map((name, attr) => scala.xml.Attribute(attr.prefix, attr.name, attr.value, null)) match {
+      case Nil         => xml.Node.NoAttributes
+      case head :: Nil => head: MetaData
+      case multi       => multi.reduce((attr1, attr2) => attr1.append(attr2))
     }
 
   }
-  def showTraversal(tcurcer: TreeWalker): Unit =
-    val cn   = tcurcer.currentNode
-    scribe.info(show(cn))
-    val next = tcurcer.nextNode()
-    if next != null then showTraversal(tcurcer)
-    ()
 
-  /* Javascript:
+  /** @return List of 1+ xmlns namespace decleration attributes of the given element */
+  def findXmlns(element: Element): Option[NonEmptyList[Attr]] = {
+    // xmlns:*
 
-var parser = new DOMParser();
-var doc = parser.parseFromString(entry , "text/xml");
-var term = doc.activeElement.children[0]
+    val xmlns: List[Attr] = element.attributes.toList
+      .collect {
+        case (_, attr: Attr) if attr.prefix == "xmlns" => attr
+      }
+    NonEmptyList.fromList(xmlns)
 
-https://www.w3schools.com/xml/xml_parser.asp
-
-   */
-
-  /** This is dying on initialization. Its a ScalaJS class facade, check original. */
-  lazy val filterNone = new NodeFilter {
-    override def acceptNode(n: Node): Int = NodeFilter.FILTER_ACCEPT
   }
 
-  def show(n: Node): String = {
-    val ntype = JSDomNodeType.fromKey(n.nodeType).get
-    // Geez, how to serialize to text a doc or node.
+  def dump(n: Node): ByteString = new XMLSerializer().serializeToString(n)
 
-    val custom = ntype match
-      case JSDomNodeType.ELEMENT_NODE                => s"${n.nodeName} ${n.nodeValue} Has Children: ${n.hasChildNodes()}"
-      case JSDomNodeType.ATTRIBUTE_NODE              => s"${n.nodeName} ${n.nodeValue} ${n.toString}"
-      case JSDomNodeType.TEXT_NODE                   => s"[${n.textContent.trim}]"
-      case JSDomNodeType.CDATA_SECTION_NODE          => s"[${n.textContent.trim}] [${n.nodeValue.trim}]"
-      case JSDomNodeType.ENTITY_REFERENCE_NODE       => s"LEGACY"
-      case JSDomNodeType.ENTITY_NODE                 => s"LEGACY"
-      case JSDomNodeType.PROCESSING_INSTRUCTION_NODE => s""
-      case JSDomNodeType.COMMENT_NODE                => s"${n.textContent.trim}"
-      case JSDomNodeType.DOCUMENT_NODE               => s""
-      case JSDomNodeType.DOCUMENT_TYPE_NODE          => s""
-      case JSDomNodeType.DOCUMENT_FRAGMENT_NODE      => s""
-      case JSDomNodeType.NOTATION_NODE               => s"LEGACY"
+  def domList2List(nl: DOMList[Node]): IndexedSeq[Node] =
+    val ln = nl.length
+    (0 until ln).map(nl(_))
 
-    s"$ntype:  $custom "
-  }
 }

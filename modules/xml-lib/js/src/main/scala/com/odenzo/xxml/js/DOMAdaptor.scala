@@ -7,7 +7,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.xml.{Attribute, Elem, MetaData, NamespaceBinding, Node, NodeSeq, Null}
 
-/** An Adaptor to take XMLEvents from FS2-data-xml and putting in the scala-xml AST (more or less)
+/** An Adaptor to take *XMLEvents* (SAX style) from FS2-data-xml and putting in the scala-xml AST (more or less)
   *   - This doesn't do validation, doesn't deal with internal or external DTD
   *   - Doesn't deal with xmlns and manually populating the prefix for nested elements
   *
