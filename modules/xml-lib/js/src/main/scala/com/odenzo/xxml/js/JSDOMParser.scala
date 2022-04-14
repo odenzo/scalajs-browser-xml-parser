@@ -9,22 +9,18 @@ import org.scalajs.dom
 import org.scalajs.dom.{Attr, ByteString, DOMList, Document, Element, NamedNodeMap, Node, NodeFilter, Text, TreeWalker, XMLSerializer}
 
 import scala.scalajs.js
-import scala.xml.{MetaData, NodeSeq}
+import scala.xml.{MetaData, NamespaceBinding, NodeSeq}
 
 /** Uses ScalaJS DOM which I think is a facade between the actual browser DOM and/or jsdom/jsdom from https://github.com/jsdom/jsdom. This
   * is more of a DOM-2-DOM translator. But, I implement it as a SAX by traversin I think.
   */
 object JSDOMParser {
 
-  /* Looks like scalajs-dom does not have the DOMParser in it. */
   val xmlMimeType = org.scalajs.dom.MIMEType.`application/xml`
 
   def parse(xmlStr: String): Document =
     new org.scalajs.dom.DOMParser().parseFromString(xmlStr, xmlMimeType)
 
-  /** Well, we have the DOM in some state, we can traverse it to build Scala XML DOM I have no idea how to inject these into scala.xml AST
-    * which seems tightly bound with parsing (or SAX Parser)
-    */
   def transformToScalaXML(doc: Document): xml.Node = {
     val docType       = doc.doctype
     doc.documentElement.normalize()
@@ -42,7 +38,6 @@ object JSDOMParser {
       case n: Node    => convert(n)
     }
     closeElement(root, kids)
-
   }
 
   def closeElement(v: Element, children: Seq[scala.xml.Node]): scala.xml.Elem = {
