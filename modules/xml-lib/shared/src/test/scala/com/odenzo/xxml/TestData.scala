@@ -1,4 +1,4 @@
-package com.odenzo.xxml.js
+package com.odenzo.xxml
 
 import scala.xml.Elem
 
