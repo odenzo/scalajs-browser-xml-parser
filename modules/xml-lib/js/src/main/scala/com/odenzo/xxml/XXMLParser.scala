@@ -1,6 +1,6 @@
 package com.odenzo.xxml
 
-import org.scalajs.dom.*
+import org.scalajs.dom.{Element, Document, Node, Attr, Text, Comment, ProcessingInstruction}
 import scala.xml.{Elem, MetaData, NamespaceBinding, SpecialNode}
 
 /** Uses ScalaJS DOM which is runnable in ScalaJS Browser and NodeJS environments to parse XML text and produce scala-xml "DOM", as a node.
@@ -12,6 +12,7 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   /** This throws unexpected exceptions which are generally non-recoverable. */
   override def parse(s: String): Elem = {
+    println("JS Parsing")
     val doc: Document = parseText(s)
     transformToScalaXML(doc) match {
       case elem: Elem        => elem: Elem
@@ -35,7 +36,7 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
   private[odenzo] def recursiveDescent(root: org.scalajs.dom.Element): scala.xml.Node = {
     val rootsChildren: List[Node] = root.childNodes.toList // Seperated for type inference
     val kids: Seq[scala.xml.Node] = rootsChildren.map { // Note that this may be empty list of children.
-      case e: Element => recursiveDescent(e)
+      case e: Element => recursiveDescent(e) // rats, need Eval() for stack safety.
       case n: Node    => convert(n)
     }
     closeElement(root, kids)
@@ -43,32 +44,36 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   private[odenzo] def closeElement(v: Element, children: Seq[scala.xml.Node]): scala.xml.Elem = {
     // FIXME: I am not keeping track of Scope Stack, not sure the purpose really since not validating
+    // And I am guessing that scope referrs to the DEFAULT scope of un-prefixed elements
+    // (multiple prefixes could point to same actual namespace, prefux could be blank but be in different namespace etc)
+    // So, it is probably worth doing. Requires keeping a list of namespaces and the current "default" namespace ...
     scala.xml.Elem(
       prefix = v.prefix,
       label = v.tagName,
       attributes = convertAttributes(v),
       scope = xml.TopScope,
       minimizeEmpty = true,
-      child = children*
+      child = children: _*
     )
   }
 
   private[odenzo] def convert(n: Node): scala.xml.Node = {
-    import org.scalajs.dom.*
-    n match
+    n match {
       // case v: Document              => scala.xml.NodeSeq.Empty
       // case v: DocumentType          => scala.xml.dtd.DocType(v.name, v.publicId, Seq.empty)
       case v: Comment               => scala.xml.Text(v.nodeValue)
       case v: Text                  => scala.xml.Text(v.nodeValue)
       case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data)
       case v: Element               => scala.xml.Elem(v.prefix, v.tagName, convertAttributes(v), scope = null, minimizeEmpty = true)
+    }
   }
 
   /** Converts scalajs.dom attributes to scala-xml attributes, leaves any xmlns:nameSpaceUri attributes in. */
   private[odenzo] def convertAttributes(elem: Element): MetaData = {
     val attrs: List[(String, Attr)] = elem.attributes.toList
     // Type Inference a bit wonky, need to case to MetaData from Attribute
-    attrs.map((name, attr) => scala.xml.Attribute(attr.prefix, attr.name, attr.value, null)) match {
+    val preAttr: List[MetaData]     = attrs.map { case (name, attr) => scala.xml.Attribute(attr.prefix, attr.name, attr.value, null) }
+    preAttr match {
       case Nil         => xml.Node.NoAttributes
       case head :: Nil => head: MetaData
       case multi       => multi.reduce((attr1, attr2) => attr1.append(attr2))
@@ -97,8 +102,5 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     ()
 
   }
-
-  /** Reminder facade :-) */
-  private[odenzo] def dump(n: Node): ByteString = new XMLSerializer().serializeToString(n)
 
 }

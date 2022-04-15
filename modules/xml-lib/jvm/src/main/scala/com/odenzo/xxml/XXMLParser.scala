@@ -16,5 +16,8 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     factory.newSAXParser()
   }
 
-  def parse(s: String): Elem = customXML.loadString(s)
+  def parse(s: String): Elem = {
+    println("JVM Parsing")
+    customXML.loadString(s)
+  }
 }
