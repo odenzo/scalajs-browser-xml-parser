@@ -6,7 +6,6 @@ class AttributesTest extends munit.FunSuite {
   test("NoPrefix") {
     val attr       = AttrInfo(None, "a", "foo")
     val resultSXML = XmlFunctions.makeAttributes(List(attr))
-    println(s"Simple scala-xml:\n${resultSXML}")
   }
 
 }

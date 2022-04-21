@@ -1,6 +1,6 @@
 package com.odenzo.xxml
 
-import scala.xml.MetaData
+import scala.xml.{Attribute, MetaData, Null}
 
 case class AttrInfo(prefix: Option[String], name: String, value: String)
 
@@ -13,16 +13,16 @@ object XmlFunctions {
 
     val preAttr: List[MetaData] = attrs.map { attr =>
       println(s"Converting Attr: $attr")
-      val sxml = scala.xml.Attribute(attr.prefix, attr.name, List(scala.xml.Text(attr.value)), null)
-      println(s"Into $sxml")
+      val sxml = scala.xml.Attribute(attr.prefix, attr.name, List(scala.xml.Text(attr.value)), Null)
+      println(s"ATRR: $sxml")
       sxml
     }
 
-    println(s"Made PreAttr List: $preAttr")
     preAttr match {
       case Nil         => xml.Node.NoAttributes
       case head :: Nil => head: MetaData
       case multi       => multi.reduce((attr1, attr2) => attr1.append(attr2))
     }
+
   }
 }
