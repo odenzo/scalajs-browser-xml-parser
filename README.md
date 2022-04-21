@@ -1,64 +1,28 @@
-# X-Platform XML
+# X-Platform XML Parsing
 
-## NEED: Parsing of simple XML response in ScalaJS Land
+*Minimal* non-validating (aside from underlying) XML parsing that returns scala-xml Node with the XML DOM tree.
 
-All I really need parser into a basic DOM like structure.
+This should work on: 
+  
+- ScalaJS in Browser
+- ScalaJS in NodewithDOM
+- Scala JVM (2.13 and 3)
+- Might try a Scala native too.
 
-- No processing instructions
-- No Validations to DTD
-- No Entity Refs from DTD
-- No Processing Instructions
-- No fetching of external stuff (standalone=yes)
-- Accept prefixes, but no real-namespace handling (even this is optional for me)
+The use case is not for full fledged XML processing, it is designed just to deal with XML responses in HTTP4S calls.
 
-### Solution so far
-1. fs2-data-xml with adaptor into scala-xml
-2. Just use built in DOMParser and XPath -- facade between ScalaJS impl and existing scala-xml impl
-3. Would be nice to have a stream emit the final DOM in one go
-4. 
-### WIP Notes
+It will not fetch external resources/DTDs.
 
-- FS2:
-  - 
-  - XmlDecleration passed through
-  - DocType partial support, in fact stuff between [ ...] is not passed 
-  - DocType first element name is not validated,
-  - All comments are stripped
-  - Prefixes are passed through  
-  - Namespaces go through as attributes on an elem, but nested elements don't get prefixed 
-  - Doesn't guarantee a root node. Not sure it should really.
-  - undefined namespaces get error as they should
-  - No DocumentStart/DocumentEnd when feeding a <?xml...> <root></root>
+```scala
+import com.odenzo.xxml.XXMLParser
+val root :scala.xml.Elem = XXMLParser.parser("""<a>THis is <b>some test</b></a>""")
+```
 
-- Mapping to scala-xml (any better DOM)
+## Status
 
-
-## IDEAL: Full conformant parsing of Standalone Docs with Embedded DTD
-
-- Gives entity references
-- Maybe processing instructions.
-
-Not sure what can be done away with really, can't we just have full functionalitry?
-
-Well, maybe with saxon-he ... licensing maybe a problem. Then we need a DOM
-
-
-
-A *very* based ScalaJS and Scala JVM XML Library.
-
-Its focus is on parsing XML into the existing x-platform scala-xml library.
-
-
-
-
-Once get to ScalaXML DOM, then maybe   libraryDependencies += "com.github.geirolz" %% "advxml-core" % 2.4.2 can be made ScalaJS
-
-
-yaidom and yaidom2 look possible.
-
-
-That is based off Saxon-HE which has JVM counterpart.
-
++ Steal a test-suite from somewhere (fs-data-xml?)
++ cross scala version build
++ Understand best way to package ScalaJS and JVM so that pure code can use the lib exactly the same from whatever environment.
 
 val scalaXmlElem = <a xmlns="http://a"><b><c>test</c></b></a>
 * 
