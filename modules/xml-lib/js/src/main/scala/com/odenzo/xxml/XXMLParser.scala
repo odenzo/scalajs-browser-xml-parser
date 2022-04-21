@@ -2,6 +2,7 @@ package com.odenzo.xxml
 
 import org.scalajs.dom.{Element, Document, Node, Attr, Text, Comment, ProcessingInstruction}
 import scala.xml.{Elem, MetaData, NamespaceBinding, SpecialNode}
+import pprint._
 
 /** Uses ScalaJS DOM which is runnable in ScalaJS Browser and NodeJS environments to parse XML text and produce scala-xml "DOM", as a node.
   * No namespace support.
@@ -61,24 +62,23 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     n match {
       // case v: Document              => scala.xml.NodeSeq.Empty
       // case v: DocumentType          => scala.xml.dtd.DocType(v.name, v.publicId, Seq.empty)
-      case v: Comment               => scala.xml.Text(v.nodeValue)
-      case v: Text                  => scala.xml.Text(v.nodeValue)
-      case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data)
+      case v: Comment               => scala.xml.Comment(v.nodeValue)
+      case v: Text                  => scala.xml.Text(v.textContent)         // NodeValue vs Text Content, reference entities
+      case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data) // What to do with these?
       case v: Element               => scala.xml.Elem(v.prefix, v.tagName, convertAttributes(v), scope = null, minimizeEmpty = true)
     }
   }
 
   /** Converts scalajs.dom attributes to scala-xml attributes, leaves any xmlns:nameSpaceUri attributes in. */
   private[odenzo] def convertAttributes(elem: Element): MetaData = {
-    val attrs: List[(String, Attr)] = elem.attributes.toList
-    // Type Inference a bit wonky, need to case to MetaData from Attribute
-    val preAttr: List[MetaData]     = attrs.map { case (name, attr) => scala.xml.Attribute(attr.prefix, attr.name, attr.value, null) }
-    preAttr match {
-      case Nil         => xml.Node.NoAttributes
-      case head :: Nil => head: MetaData
-      case multi       => multi.reduce((attr1, attr2) => attr1.append(attr2))
+    val attrs: List[Attr] = elem.attributes.toList.map(_._2)
+    attrs.foreach { a =>
+      println(s"NSInfo: ${Option(a.namespaceURI)}, ${Option(a.lookupPrefix(null))}, ${Option(a.lookupNamespaceURI(a.prefix))}")
     }
-
+    val attrInfo          = attrs.map(a => AttrInfo(Option(a.prefix), a.name, a.value))
+    println(s"Attributes RawList: ${attrs}")
+    println(s"Attributes Info: ${attrInfo}")
+    XmlFunctions.makeAttributes(attrInfo)
   }
 
   /** TODO: Uncertain the utility of doing namespaces, instead of using a Stack scala.xml thread the namespace bindings via parent But one

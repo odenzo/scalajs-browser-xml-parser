@@ -47,4 +47,4 @@ lazy val xml = (crossProject(JSPlatform, JVMPlatform))
   )
 
 ThisBuild / jsEnv := new org.scalajs.jsenv.jsdomnodejs.JSDOMNodeJSEnv()
-addCommandAlias("to", "testOnly -- --tests=")
+addCommandAlias("to", "xmlJS/testOnly -- --tests=")
