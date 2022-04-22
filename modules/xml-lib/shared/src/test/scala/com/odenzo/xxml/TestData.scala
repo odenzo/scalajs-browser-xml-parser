@@ -54,7 +54,7 @@ object TestData {
                           |  <!ENTITY foo "FooBar">
                           |]>
                           |<root>
-                          | <a1>First Element &amp; default entity ref</a1>
+                          | <a1>First Element &amp; MicroHex = [&#x00B5;] MicroDec= [&#0181;] default entity ref</a1>
                           | <b1>Second Element &foo; Same Level</b1>
                           |</root>""".stripMargin
 
@@ -73,6 +73,32 @@ object TestData {
                          |   <cb2>Goodbye</cb2>
                          | </c1>
                          |</root>""".stripMargin
+
+  val nestedNamespaceElemName = """<root>
+                                  | <a aa="foo" ab="bar" ns2:ab="car" xmlns:ns2="http://odenzo.com/">
+                                  |  <ns2:b ab="attrV">B should be in namespace ns2 automatically?, Attributes?
+                                  |   <c>Or C, even JVM shows no namespace</c>
+                                  |  </ns2:b>
+                                  |</a>
+                                  |</root>""".stripMargin
+
+  val nestedNamespaceElem = """<root>
+                              | <a aa="foo" ab="bar" ns2:ab="car" xmlns:ns2="http://odenzo.com/">
+                              |  <b ab="attrV">B should be in namespace ns2 automatically?, Attributes?
+                              |   <c>Or C, even JVM shows no namespace</c>
+                              |  </b>
+                              |</a>
+                              |</root>""".stripMargin
+
+  val namespaceUndeclared = """<root>
+                              | <foobar:a>
+                              |   <c>Nested on namespace </c>
+                              |</foobar:a>
+                              |</root>""".stripMargin
+
+  val attributesDuplicated = """<root>
+                               | <a aa="foo" ab="bar" ns2:ab="car" xmlns:ns2="http://odenzo.com/">A Content</a>
+                               |</root>""".stripMargin
 
   val attributes = """<root>
                      | <a aa="foo" ab="bar">A Content</a>

@@ -3,6 +3,11 @@ package com.odenzo.xxml
 import scala.xml.{Elem, NodeBuffer}
 
 object NegataiveTestData {
+
+  val attributesDuplicated = """<root>
+                               | <a aa="foo" ab="bar" ab="car">A Content</a>
+                               |</root>""".stripMargin
+
   // Some Sample XML
   val invalidXmlDecl = """<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
                          |<!DOCTYPE foo [
