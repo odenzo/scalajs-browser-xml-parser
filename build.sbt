@@ -35,7 +35,7 @@ lazy val xml = crossProject(JSPlatform, JVMPlatform)
   .settings(
     name := "xplatform-xml",
     libraryDependencies ++=
-      Seq(XLib.cats.value, XLib.pprint.value, XLib.scribe.value, XLib.scalaXML.value, XLib.munit.value)
+      Seq(XLib.cats.value, XLib.scalaXML.value, XLib.munit.value)
   )
   .jsSettings(
     libraryDependencies ++= Seq(

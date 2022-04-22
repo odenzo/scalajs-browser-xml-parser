@@ -1,13 +1,9 @@
 package com.odenzo.xxml
 
 import cats._
-import cats.data._
 import cats.implicits._
-
 import org.scalajs.dom.{Attr, CDATASection, Comment, Document, DocumentType, Element, Node, ProcessingInstruction, Text}
-
 import scala.xml.{Elem, MetaData, NamespaceBinding, NodeSeq, Null, SpecialNode, TopScope}
-import pprint._
 
 /** Uses ScalaJS DOM which is runnable in ScalaJS Browser and NodeJS environments to parse XML text and produce scala-xml "DOM", as a node.
   * No namespace support.
@@ -46,12 +42,22 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   }
 
-  /** @param currScope
+  /** Try and re-write with Eval but tail-rec enabled.
+    * @param currScope
     *   A threaded list of NamespaceBindings, used as a Stack basically (via callstack), List[Namespace] would be just as good
     */
   private[odenzo] def recursiveDescent(root: org.scalajs.dom.Element, currScope: NamespaceBinding): Eval[scala.xml.Node] = {
-    val myScope: NamespaceBinding           = findXmlns(root, currScope).getOrElse(currScope)
-    val rootsChildren: List[Node]           = root.childNodes.toList // Seperated for type inference
+    val myScope: NamespaceBinding = findXmlns(root, currScope).getOrElse(currScope)
+    val rootsChildren: List[Node] = root.childNodes.toList // Seperated for type inference
+
+    val (elemKids, nonElemKids) = rootsChildren.partition {
+      case e: Element => true
+      case n: Node    => false
+    }
+
+    val nonElemSXML                         = nonElemKids.map(convert).reduceLeft((a: NodeSeq, b: NodeSeq) => a.appendedAll(b))
+    // Need to keep the kids in order between element and nodes even to be conforming.
+    // So, will need to pass down state of the current list of children before it that is will append to.
     val kids: Eval[List[scala.xml.NodeSeq]] = rootsChildren
       .traverse {
         case e: Element => Eval.defer(recursiveDescent(e, myScope))
@@ -59,7 +65,7 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
       }
 
     kids.map { children =>
-      val compact = children.reduce((a: NodeSeq, b: NodeSeq) => a.appendedAll(b))
+      val compact = children.reduceLeft((a: NodeSeq, b: NodeSeq) => a.appendedAll(b))
       closeElement(root, compact)
     }
   }
