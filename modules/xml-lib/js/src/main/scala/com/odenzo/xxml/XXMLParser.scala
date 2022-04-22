@@ -16,6 +16,13 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   private val xmlMimeType = org.scalajs.dom.MIMEType.`application/xml`
 
+  /** This throws unexpected exceptions which are generally non-recoverable. */
+  override def parse(s: String): scala.xml.Elem = {
+    println("JS Parsing")
+    val doc: Document = parseText(s)
+    convertToScalaXML(doc)
+  }
+
   def parseText(xmlStr: String): Document =
     new org.scalajs.dom.DOMParser().parseFromString(xmlStr, xmlMimeType)
 
@@ -28,15 +35,10 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     }
   }
 
-  /** This throws unexpected exceptions which are generally non-recoverable. */
-  override def parse(s: String): scala.xml.Elem = {
-    println("JS Parsing")
-    val doc: Document = parseText(s)
-    convertToScalaXML(doc)
-  }
-
   def transformToScalaXML(doc: Document): xml.Node = {
-    val docType                                      = doc.doctype
+    // Throwing this away, but entity refs and at least some validation already done.
+    // val docType = doc.doctype
+
     doc.documentElement.normalize()
     val root: Element                                = doc.documentElement
     val defaultNamespace: scala.xml.NamespaceBinding = scala.xml.TopScope
@@ -44,9 +46,7 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   }
 
-  /** A non-stack safe recursion matching max depth of the DOM tree. Probably worthwhile to use Cats Eval but want to keep the minimum
-    * libraries
-    * @param currScope
+  /** @param currScope
     *   A threaded list of NamespaceBindings, used as a Stack basically (via callstack), List[Namespace] would be just as good
     */
   private[odenzo] def recursiveDescent(root: org.scalajs.dom.Element, currScope: NamespaceBinding): Eval[scala.xml.Node] = {
@@ -64,9 +64,6 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     }
   }
 
-  /** All nodes be element we convert on the way down -- note we keep scope on TopScope since namespace is not really handled (or
-    * understood!) yet.
-    */
   private[odenzo] def closeElement(v: Element, children: Seq[scala.xml.Node]): scala.xml.Elem = {
     scala.xml.Elem(
       prefix = v.prefix,
@@ -80,12 +77,12 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
 
   private[odenzo] def convert(n: Node): scala.xml.NodeSeq = {
     n match {
-      case v: Document              => scala.xml.NodeSeq.Empty               // Nothing really matches this in scala XML
-      case v: DocumentType          => scala.xml.NodeSeq.Empty               // scala.xml.dtd.DocType(v.name, v.publicId, Seq.empty) TODO
-      case v: Element               => scala.xml.NodeSeq.Empty               // Made on the closing element
+      case v: Document              => scala.xml.NodeSeq.Empty               // Will never see
+      case v: DocumentType          => scala.xml.NodeSeq.Empty               // Will never see since from docroot
+      case v: Element               => scala.xml.NodeSeq.Empty               // Made on the closing element so ignored
       case v: Comment               => scala.xml.Comment(v.nodeValue)
       case v: CDATASection          => scala.xml.PCData(v.textContent)
-      case v: Text                  => scala.xml.Text(v.textContent)         // NodeValue vs Text Content, reference entities
+      case v: Text                  => scala.xml.Text(v.textContent)
       case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data) // What to do with these? Could check ?xml is standalone?
     }
   }
@@ -95,9 +92,8 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     val attrs: List[Attr]  = elem.attributes.toList.map(_._2)
     val md: List[MetaData] = attrs.map(a => scala.xml.Attribute(Option(a.prefix), a.localName, scala.xml.Text(a.value), Null))
     md match {
-      case Nil         => xml.Node.NoAttributes
-      case head :: Nil => head: MetaData
-      case multi       => multi.reduce((attr1, attr2) => attr1.append(attr2))
+      case Nil   => scala.xml.Node.NoAttributes
+      case multi => multi.reduceLeft((attr1, attr2) => attr1.append(attr2))
     }
 
   }

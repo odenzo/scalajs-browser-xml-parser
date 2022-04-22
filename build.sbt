@@ -29,7 +29,7 @@ lazy val root = project
   .aggregate(xml.jvm, xml.js)
   .settings(name := "xplatform-xml-project", crossScalaVersions := supportedScalaVersions, doc / aggregate := false)
 
-lazy val xml = (crossProject(JSPlatform, JVMPlatform))
+lazy val xml = crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full)
   .in(file("modules/xml-lib"))
   .settings(
