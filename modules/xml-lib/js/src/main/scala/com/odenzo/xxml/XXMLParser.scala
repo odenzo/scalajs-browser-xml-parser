@@ -41,7 +41,7 @@ object XXMLParser {
           val dump: String = scala.xml.Utility.serialize(e).toString
           println(s"Result:\n$dump")
           e
-        case other       => throw DOMParserException(s"IMPOSSIBLE for Root to Be Other Node: $other")
+        case null        => throw DOMParserException(s"IMPOSSIBLE for Root to Be Null")
       }
     } catch {
       case e: DOMParserException => throw e

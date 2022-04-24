@@ -1,28 +1,47 @@
-# X-Platform XML
+# HTTP4S V1.xx XML EntityDecoder and EntityEncoder for ScalaJS
 
-## NEED: Parsing of simple XML response in ScalaJS Land for use with HTTP4S
+## The problem:
+scala-xml parsing isn't functional under Scala JS, but the rest is.
+
+## Design Criteria
++ Handle XML with internal DTD entity refs, but do not allow non-standalone documents (no external calls)
++ Enable the same "shared code" to be used for both JVM and ScalaJS
+
+## Solution
+
+Create XML EntityDecoder and EntityEncoder for XML in namespace `com.odenzo.xxml`.
+This has ScalaJS implementation of an implicit EntityEncoder and EntityDecoder that can be imported in shared Scala code.
+There is a "no-op stub" on the JVM side, so the existing HTTP4S imports are needed for JVM Decoder/Encoder
+
++ ScalaJS DOM is used, and handles entities, well-formed XML checked but no DTD validation at all. This allows browser based 
+parsing, and NodeJS when the JSDOMNodeJSEnv is used.
+
+```ThisBuild / jsEnv := new org.scalajs.jsenv.jsdomnodejs.JSDOMNodeJSEnv()```
+
+Basically, this parses the XML using the Browser DOM parsing, and then converts the Browser DOM to scala-xml DOM by returning the root elem.
+Partially XML documents are not supported, you need a root element.
+
+Once in scala-xml format you can use all the existing x-platform facilities for that, including XPath and node traversals.
+If you only have ScalaJS code, the little helper for just the DOM parsing is exposed, and you can extract stuff from the Browser DOM if you 
+want. Generally the scala-xml DOM is easier IMHO, although it too is littered with `null` values so be careful.
+
+## Build Details
++ Cross compiled for ScalaJS and Scala 2.13.x and Scala 3.x 
++ TODO: Publish as Scala 3.0 which provides forward compatability
+
++ Minimal dependencies, only Cats and scala-jsdom 
 
 
-All I really need parser into a basic DOM like structure.
 
-- No processing instructions
-- No Validations to DTD
-- No Entity Refs from DTD
+## Example Usage
 
-- No fetching of external stuff (standalone=yes)
-- Accept prefixes, but no real-namespace handling (even this is optional for me)
+See etrade-whatever for full example HTTP4S client side usage.
 
-### Solution so far
-1. Uses scalajs-dom for parsing
-2. Navigates the resulting DOM and coverts to scala-xml DOM
+TODO: 
+- Minimal Client Example for POSTing XML and receiving XML in return
+- Minimal Server Example for Receiving XML and returning XML document
 
-### WIP Notes
-\
-## IDEAL: Full conformant parsing of Standalone Docs with Embedded DTD
 
-- WARN if <?xml standardlone is not true>
-- Parse entity decl in embedded DOCTYPE
-- Leave subsequent PI in document but not action?
-- Leaves unknown name EntityRefs in document (verbatum)
-- Cross compile limited to 2.13 / 3 / ScalaJS (wip, using 2.13 now instead of 3)
-- Change publish to 3.0 per best practice for Scala 3 libs
+## TODO
+- Clean up this mess and move to a new repo
+- Add invalid XML document suite which should also pass when in no validation mode

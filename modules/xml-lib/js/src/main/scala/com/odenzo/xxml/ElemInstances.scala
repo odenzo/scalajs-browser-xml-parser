@@ -10,13 +10,9 @@ import org.http4s.{Charset, DecodeFailure, DecodeResult, EntityDecoder, EntityEn
 import org.http4s.Charset.`UTF-8`
 import org.http4s.headers.`Content-Type`
 
-import java.io.ByteArrayInputStream
 import java.io.StringWriter
-import javax.xml.parsers.SAXParserFactory
 import scala.util.control.NonFatal
 import scala.xml.Elem
-import scala.xml.InputSource
-import scala.xml.SAXParseException
 import scala.xml.XML
 
 trait ElemInstances {
@@ -40,14 +36,14 @@ trait ElemInstances {
     */
   implicit def xml[F[_]](implicit F: Concurrent[F]): EntityDecoder[F, Elem] = {
     import EntityDecoder._
-    decodeBy(MediaType.text.xml, MediaType.text.html, MediaType.application.xml) { msg: Media[F] =>
+    decodeBy(MediaType.text.xml, MediaType.text.html, MediaType.application.xml) { msg =>
       try {
         val elem: F[Elem] = decodeText(msg).map(XXMLParser.parse)
         DecodeResult.success(elem)
       } catch {
-        case e: SAXParseException =>
+        case e: DOMParserException =>
           DecodeResult.failureT(MalformedMessageBodyFailure("Invalid XML", Some(e)))
-        case NonFatal(e)          => DecodeResult(F.raiseError[Either[DecodeFailure, Elem]](e))
+        case NonFatal(e)           => DecodeResult(F.raiseError[Either[DecodeFailure, Elem]](e))
       }
     }
   }
