@@ -12,7 +12,7 @@ inThisBuild {
   publishMavenStyle           := true
   bspEnabled                  := false
   organization                := "com.odenzo"
-  reStart / javaOptions += "-Xmx2g"
+  // reStart / javaOptions += "-Xmx2g"
   Test / fork                 := false // ScalaJS can't be forked
   Test / parallelExecution    := false
   Test / logBuffered          := true
@@ -35,7 +35,7 @@ lazy val xml = crossProject(JSPlatform, JVMPlatform)
   .settings(
     name := "xplatform-xml",
     libraryDependencies ++=
-      Seq(XLib.cats.value, XLib.scalaXML.value, XLib.munit.value)
+      Seq(XLib.cats.value, XLib.scalaXML.value, XLib.munit.value, XLib.http4sCore.value)
   )
   .jsSettings(
     libraryDependencies ++= Seq(

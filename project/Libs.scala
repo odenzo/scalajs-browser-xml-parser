@@ -17,6 +17,7 @@ object V {
   val fs2                = "3.2.7"
   val fs2Data            = "1.3.1"
   val http4s             = "1.0.0-M32"
+  val http4sDom          = "0.2.1"
   val logback            = "1.2.11"
   val monocle            = "3.1.0"
   val munitCats          = "1.0.7"
@@ -166,6 +167,8 @@ object XLib {
   lazy val http4sEmber  = Def.setting("org.http4s" %%% "http4s-ember-client" % V.http4s) // Diff with Blaze, use different on JVM or JS
   lazy val http4sCirce  = Def.setting("org.http4s" %%% "http4s-circe" % V.http4s)
   lazy val http4sXml    = Def.setting("org.http4s" %%% "http4s-scala-xml" % V.http4s)
+  lazy val http4sCore   = Def.setting("org.http4s" %%% "http4s-core" % V.http4s)
+  lazy val http4sDom    = Def.setting("org.http4s" %%% "http4s-dom" % V.http4sDom)
   lazy val catsRetru    = Def.setting("com.github.cb372" %%% "cats-retry" % V.catsRetry)
   val fs2               = Def.setting("fs2" %%% "fs2-core" % V.fs2)
   val fs2Data           = Def.setting("org.gnieh" %%% "fs2-data-xml" % V.fs2Data)

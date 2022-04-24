@@ -1,77 +1,67 @@
 package com.odenzo.xxml
 
 import cats._
-import cats.implicits._
-import org.scalajs.dom.{Attr, CDATASection, Comment, Document, DocumentType, Element, Node, ProcessingInstruction, Text}
-import scala.xml.{Elem, MetaData, NamespaceBinding, NodeSeq, Null, SpecialNode, TopScope}
+import cats.implicits._ // For Traverse
+import com.sun.org.apache.xml.internal.serialize.XMLSerializer
+import org.scalajs.dom
+import scala.util.control.{NonFatal, TailCalls}
+import scala.xml.{Elem, MetaData, NamespaceBinding, NodeSeq, Null, SAXParseException, SpecialNode, TopScope}
 
 /** Uses ScalaJS DOM which is runnable in ScalaJS Browser and NodeJS environments to parse XML text and produce scala-xml "DOM", as a node.
-  * No namespace support.
+  * No namespace support. This is hidden behind the EntityEncoder/Decoder In practice we can make all this package private, on;y the http4s
+  * codec can be exposed.
   */
-object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
+object XXMLParser {
 
   private val xmlMimeType = org.scalajs.dom.MIMEType.`application/xml`
 
   /** This throws unexpected exceptions which are generally non-recoverable. */
-  override def parse(s: String): scala.xml.Elem = {
+  def parse(s: String): scala.xml.Elem = {
     println("JS Parsing")
-    val doc: Document = parseText(s)
+    val doc: dom.Document = parseText(s)
     convertToScalaXML(doc)
   }
 
-  def parseText(xmlStr: String): Document =
-    new org.scalajs.dom.DOMParser().parseFromString(xmlStr, xmlMimeType)
-
-  def convertToScalaXML(doc: Document): Elem = {
-    transformToScalaXML(doc) match {
-      case elem: Elem        => elem: Elem
-      case xml.Group(nodes)  => throw new IllegalStateException(s"IMPOSSIBLE for Root to Be Group Node: $nodes")
-      case node: SpecialNode => throw new IllegalStateException(s"IMPOSSIBLE for Root to Be Special Node: $node")
-      case other             => throw new IllegalStateException("IMPOSSIBLE for Root to Be Other Node: $other")
-    }
-  }
-
-  def transformToScalaXML(doc: Document): xml.Node = {
-    // Throwing this away, but entity refs and at least some validation already done.
-    // val docType = doc.doctype
-
+  /** This tends to throw some exception and also give us a dummy root element with worthless error msg */
+  def parseText(xmlStr: String): dom.Document = {
+    val doc = new org.scalajs.dom.DOMParser().parseFromString(xmlStr, xmlMimeType)
     doc.documentElement.normalize()
-    val root: Element                                = doc.documentElement
-    val defaultNamespace: scala.xml.NamespaceBinding = scala.xml.TopScope
-    recursiveDescent(root, defaultNamespace).value
+    println(s"Dump: ${new dom.XMLSerializer().serializeToString(doc.documentElement)}")
+    if (doc.documentElement.tagName === "parsererror") {
+      val msg = doc.documentElement.textContent
+      throw DOMParserException(s"Trouble Parsing XML via DOM: $msg", null)
+    } else doc
 
   }
 
-  /** Try and re-write with Eval but tail-rec enabled.
-    * @param currScope
-    *   A threaded list of NamespaceBindings, used as a Stack basically (via callstack), List[Namespace] would be just as good
-    */
-  private[odenzo] def recursiveDescent(root: org.scalajs.dom.Element, currScope: NamespaceBinding): Eval[scala.xml.Node] = {
-    val myScope: NamespaceBinding = findXmlns(root, currScope).getOrElse(currScope)
-    val rootsChildren: List[Node] = root.childNodes.toList // Seperated for type inference
-
-    val (elemKids, nonElemKids) = rootsChildren.partition {
-      case e: Element => true
-      case n: Node    => false
-    }
-
-    val nonElemSXML                         = nonElemKids.map(convert).reduceLeft((a: NodeSeq, b: NodeSeq) => a.appendedAll(b))
-    // Need to keep the kids in order between element and nodes even to be conforming.
-    // So, will need to pass down state of the current list of children before it that is will append to.
-    val kids: Eval[List[scala.xml.NodeSeq]] = rootsChildren
-      .traverse {
-        case e: Element => Eval.defer(recursiveDescent(e, myScope))
-        case n: Node    => Eval.now(convert(n))
+  def convertToScalaXML(doc: dom.Document): xml.Elem = {
+    try {
+      recursiveDescent(doc.documentElement, xml.TopScope).result match {
+        case e: xml.Elem =>
+          val dump: String = scala.xml.Utility.serialize(e).toString
+          println(s"Result:\n$dump")
+          e
+        case other       => throw DOMParserException(s"IMPOSSIBLE for Root to Be Other Node: $other")
       }
-
-    kids.map { children =>
-      val compact = children.reduceLeft((a: NodeSeq, b: NodeSeq) => a.appendedAll(b))
-      closeElement(root, compact)
+    } catch {
+      case e: DOMParserException => throw e
+      case NonFatal(e)           => throw DOMParserException("Internal Error Converting XML", e)
     }
+
   }
 
-  private[odenzo] def closeElement(v: Element, children: Seq[scala.xml.Node]): scala.xml.Elem = {
-    scala.xml.Elem(
+  private[odenzo] def recursiveDescent(root: dom.Element, currScope: NamespaceBinding): TailCalls.TailRec[Elem] = {
+    val myScope: NamespaceBinding = findXmlns(root, currScope).getOrElse(currScope)
+    root.childNodes.toList
+      .traverse {
+        case e: dom.Element => TailCalls.tailcall(recursiveDescent(e, myScope))
+        case n: dom.Node    => TailCalls.done(convert(n))
+      }
+      .map(large => closeElement(root, large.flatMap(_.toList)))
+  }
+
+  private[odenzo] def closeElement(v: dom.Element, children: Seq[xml.Node]): xml.Elem = {
+    xml.Elem(
       prefix = v.prefix,
       label = v.localName,
       attributes = convertAttributes(v),
@@ -81,44 +71,46 @@ object XXMLParser extends com.odenzo.xxml.XXMLParserInterface {
     )
   }
 
-  private[odenzo] def convert(n: Node): scala.xml.NodeSeq = {
+  private[odenzo] def convert(n: dom.Node): xml.NodeSeq = {
     n match {
-      case v: Document              => scala.xml.NodeSeq.Empty               // Will never see
-      case v: DocumentType          => scala.xml.NodeSeq.Empty               // Will never see since from docroot
-      case v: Element               => scala.xml.NodeSeq.Empty               // Made on the closing element so ignored
-      case v: Comment               => scala.xml.Comment(v.nodeValue)
-      case v: CDATASection          => scala.xml.PCData(v.textContent)
-      case v: Text                  => scala.xml.Text(v.textContent)
-      case v: ProcessingInstruction => scala.xml.ProcInstr(v.target, v.data) // What to do with these? Could check ?xml is standalone?
+      case _: dom.Document              => xml.NodeSeq.Empty               // Will never see
+      case _: dom.DocumentType          => xml.NodeSeq.Empty               // Will never see since from docroot
+      case _: dom.Element               => xml.NodeSeq.Empty               // Made on the closing element so ignored
+      case v: dom.Comment               => xml.Comment(v.nodeValue)
+      case v: dom.CDATASection          => xml.PCData(v.textContent)       // PCData != CData but closest match
+      case v: dom.Text                  => xml.Text(v.textContent)         // Will still have XML Refs (built-in only)
+      case v: dom.ProcessingInstruction => xml.ProcInstr(v.target, v.data) // What to do with these? Could check ?xml is standalone?
     }
   }
 
   /** Converts scalajs.dom attributes to scala-xml attributes, leaves any xmlns:nameSpaceUri attributes in. */
-  private[odenzo] def convertAttributes(elem: Element): MetaData = {
-    val attrs: List[Attr]  = elem.attributes.toList.map(_._2)
-    val md: List[MetaData] = attrs.map(a => scala.xml.Attribute(Option(a.prefix), a.localName, scala.xml.Text(a.value), Null))
+  private[odenzo] def convertAttributes(elem: dom.Element): MetaData = {
+    val md: List[xml.MetaData] =
+      elem.attributes.toList
+        .map(_._2)
+        .map(a => xml.Attribute(Option(a.prefix), a.localName, xml.Text(a.value), Null))
+
     md match {
-      case Nil   => scala.xml.Node.NoAttributes
+      case Nil   => xml.Node.NoAttributes
       case multi => multi.reduceLeft((attr1, attr2) => attr1.append(attr2))
     }
 
   }
 
   /** scala-xml namespace is always empty, even on JVM, so not sure the point of this. (prefixed or not) Perhaps it will enable some
-    * scala-xml sanity checks not happening on DOM parser. But since no validation I think this is all happening already.
+    * scala-xml sanity checks so leaving it in. Note that I also leave the raw attributes in the elements
     * @return
     *   Maybe 1 binding (with or without prefix) on the given element
     */
-  private[odenzo] def findXmlns(element: Element, currNamespace: scala.xml.NamespaceBinding): Option[NamespaceBinding] = {
-    element.attributes.toList
-      .collectFirst {
-        case (_, attr: Attr) if attr.prefix == "xmlns" => scala.xml.NamespaceBinding(attr.localName, attr.value, currNamespace)
-      }
-      .orElse {
-        element.attributes.toList.collectFirst {
-          case (_, attr: Attr) if attr.prefix.startsWith("xmlns:") => scala.xml.NamespaceBinding(attr.name, attr.value, currNamespace)
+  private[odenzo] def findXmlns(element: dom.Element, currNamespace: xml.NamespaceBinding): Option[NamespaceBinding] = {
+    element.attributes.toList.collectFirst {
+      case (_, attr: dom.Attr) if attr.name != null && attr.name.contains("xmlns") =>
+        Option(attr.prefix) match { // Deal will null
+          case None          => xml.NamespaceBinding(null, attr.value, currNamespace) // Default Namespace
+          case Some("xmlns") => xml.NamespaceBinding(attr.localName, attr.value, currNamespace)
+          case Some(_)       => throw DOMParserException("Impossible Case")
         }
-      }
+    }
   }
 
 }
