@@ -15,9 +15,8 @@ import scala.util.control.NonFatal
 import scala.xml.Elem
 import scala.xml.XML
 
+/** This can be cross platform JS and JVM */
 trait ElemInstances {
-
-  /** This can be cross platform JS and JVM */
   implicit def xmlEncoder[F[_]](implicit charset: Charset = `UTF-8`): EntityEncoder[F, Elem] =
     EntityEncoder.stringEncoder
       .contramap[Elem] { node =>
@@ -27,14 +26,13 @@ trait ElemInstances {
       }
       .withContentType(`Content-Type`(MediaType.application.xml).withCharset(charset))
 
-  /** Handles a message body as XML.
-    *
-    * Using the DOM parser exposes via scalajs.dom. This needs to replace/override the Entity Decoder for JVM.
+  /** Handles a message body as XML. This is renamed xxml but you probably are never going to use the name and avoids conflict with
+    * scala.xml Using the DOM parser exposes via scalajs.dom. This needs to replace/override the Entity Decoder for JVM.
     *
     * @return
     *   an XML element
     */
-  implicit def xml[F[_]](implicit F: Concurrent[F]): EntityDecoder[F, Elem] = {
+  implicit def xxml[F[_]](implicit F: Concurrent[F]): EntityDecoder[F, Elem] = {
     import EntityDecoder._
     decodeBy(MediaType.text.xml, MediaType.text.html, MediaType.application.xml) { msg =>
       try {

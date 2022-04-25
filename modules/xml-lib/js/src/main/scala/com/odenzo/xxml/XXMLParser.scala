@@ -2,10 +2,10 @@ package com.odenzo.xxml
 
 import cats._
 import cats.implicits._ // For Traverse
-import com.sun.org.apache.xml.internal.serialize.XMLSerializer
 import org.scalajs.dom
 import scala.util.control.{NonFatal, TailCalls}
-import scala.xml.{Elem, MetaData, NamespaceBinding, NodeSeq, Null, SAXParseException, SpecialNode, TopScope}
+import _root_.scala.xml
+import _root_.scala.xml.{Elem, MetaData, NamespaceBinding, NodeSeq, Null, SAXParseException, SpecialNode, TopScope}
 
 /** Uses ScalaJS DOM which is runnable in ScalaJS Browser and NodeJS environments to parse XML text and produce scala-xml "DOM", as a node.
   * No namespace support. This is hidden behind the EntityEncoder/Decoder In practice we can make all this package private, on;y the http4s
@@ -36,7 +36,7 @@ object XXMLParser {
 
   def convertToScalaXML(doc: dom.Document): xml.Elem = {
     try {
-      recursiveDescent(doc.documentElement, xml.TopScope).result match {
+      recursiveDescent(doc.documentElement, TopScope).result match {
         case e: xml.Elem =>
           val dump: String = scala.xml.Utility.serialize(e).toString
           println(s"Result:\n$dump")

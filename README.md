@@ -39,7 +39,8 @@ See etrade-whatever for full example HTTP4S client side usage.
 
 TODO: 
 - Minimal Client Example for POSTing XML and receiving XML in return
-- Minimal Server Example for Receiving XML and returning XML document
+
+There is no server example, because there is no ScaleJS env server :-)
 
 
 ## TODO
